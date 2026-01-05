@@ -90,13 +90,4 @@ class UNet(nn.Module):
         logits = self.out(x)
 
         return torch.sigmoid(logits)
-
-'''
-if __name__ == "__main__":
-    model = UNet(3, 1)
-    x = torch.randn(4, 3, 512, 512)
-    y = model(x)
-    print(x.shape)
-    print(y.shape)
-'''
         

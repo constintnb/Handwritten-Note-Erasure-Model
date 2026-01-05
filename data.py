@@ -3,9 +3,10 @@ from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
 import random
+from tqdm import tqdm
 
 class Data(Dataset):
-    def __init__(self, root_dir, csize, repect=4):
+    def __init__(self, root_dir, csize, repect=20, cache_mode=False):
         self.root_dir = root_dir     # 数据集的根目录
         self.in_dir = os.path.join(root_dir, "input")   # 原图
         self.out_dir = os.path.join(root_dir, "output")     # 效果图
@@ -13,6 +14,22 @@ class Data(Dataset):
         self.filename = sorted(os.listdir(self.in_dir))  # 建立一个有序的文件列表
         self.csize = csize # 裁剪大小
         self.repect = repect   # 同一张图被裁剪多少次
+
+        self.cache_mode = cache_mode
+        self.cache = {}
+
+        # 数据预加载到内存
+        if self.cache_mode:
+            print(f"正在将 {len(self.filename)} 张图片预加载到内存...")
+            for i, name in tqdm(enumerate(self.filename), total=len(self.filename)):
+                input_path = os.path.join(self.in_dir, name)
+                output_path = os.path.join(self.out_dir, name)
+
+                img = Image.open(input_path).convert("RGB")
+                mask = Image.open(output_path).convert('L')
+
+                self.cache[i] = (img, mask)
+
 
     def __len__(self):
         return len(self.filename) * self.repect
@@ -38,19 +55,27 @@ class Data(Dataset):
 
         image = TF.to_tensor(image)
         mask = TF.to_tensor(mask)
-
+        
+        # 数据增强
+        if random.random() > 0.5:
+            image = TF.adjust_brightness(image, random.uniform(0.8, 1.2)) # 亮度
+        if random.random() > 0.5:
+            image = TF.adjust_contrast(image, random.uniform(0.8, 1.2))   # 对比度
 
         return image, mask
 
     def __getitem__(self, idx):
         idx =  idx % len(self.filename)
 
-        name = self.filename[idx]
-        input_path = os.path.join(self.in_dir, name)
-        output_path = os.path.join(self.out_dir, name)
+        if self.cache_mode:
+            image, mask = self.cache[idx]
+        else:
+            name = self.filename[idx]
+            input_path = os.path.join(self.in_dir, name)
+            output_path = os.path.join(self.out_dir, name)
 
-        image = Image.open(input_path).convert("RGB")
-        mask = Image.open(output_path).convert('L')
+            image = Image.open(input_path).convert("RGB")
+            mask = Image.open(output_path).convert('L')
 
         image, mask = self.transform(image, mask)
 
